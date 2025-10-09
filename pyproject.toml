@@ -1,0 +1,35 @@
+[project]
+name = "hamsterlib"
+dynamic = ["version"]
+description = "utility to interface with a Hamster sqlite library"
+license = "MIT"
+license-files = ["LICENSE.txt"]
+authors = [
+    {name = "Felix Schwarz", email = "felix.schwarz@oss.schwarz.eu"}
+]
+# It might also work with older versions of Python but I am using this
+# only on my computers so just require a modern version for now.
+requires-python = ">=3.13"
+dependencies = [
+    "SQLAlchemy >= 2.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["schwarz.*"]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION.txt"}
+
+
+[tool.ruff]
+line-length = 100
+# "I": sort imports
+lint.extend-select = ["I"]

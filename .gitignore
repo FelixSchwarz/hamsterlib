@@ -1,0 +1,6 @@
+/.activate.sh
+/.deactivate.sh
+/build
+/dist
+/*.py
+/*.json
