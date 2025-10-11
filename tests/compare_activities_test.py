@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -28,6 +28,7 @@ def test_compare_activities_empty_hamster(session, coding_work_activity):
     result = compare_activities([coding_work_activity], hamster_db)
     assert result.new_activities == [coding_work_activity]
     assert result.existing == []
+    assert result.conflicts == []
 
 
 @pytest.fixture
@@ -45,20 +46,48 @@ def db_coding_work(db_category_work, session) -> Activity:
 
 
 @pytest.fixture
-def coding_work_activity() -> HamsterActivity:
+def db_meeting_work(db_category_work, session) -> Activity:
+    activity = Activity(name="meeting", category=db_category_work)
+    session.add(activity)
+    return activity
+
+
+@pytest.fixture
+def coding_work_activity(db_coding_work) -> HamsterActivity:
     return HamsterActivity(
         start_time=datetime(2024, 6, 1, hour=9, minute=0),
         end_time=datetime(2024, 6, 1, hour=11, minute=0),
         duration_minutes=120,
-        activity="coding",
-        category="work",
+        activity=db_coding_work.name,
+        category=db_coding_work.category.name,
     )
 
 
-def test_compare_activities(coding_work_activity, db_coding_work, session):
-    db_coding_fact = _fact_from_activity(coding_work_activity, session=session)
-    session.add(db_coding_fact)
+@pytest.fixture
+def meeting_work_activity(db_meeting_work) -> HamsterActivity:
+    return HamsterActivity(
+        start_time=datetime(2024, 6, 1, hour=13, minute=0),
+        end_time=datetime(2024, 6, 1, hour=14, minute=0),
+        duration_minutes=60,
+        activity=db_meeting_work.name,
+        category=db_meeting_work.category.name,
+    )
+
+
+def test_compare_activities(coding_work_activity, db_coding_work, meeting_work_activity, session):
+    session.flush()
+    _fact_from_activity(coding_work_activity, session=session)
+    meeting_fact = _fact_from_activity(meeting_work_activity, session=session)
     session.commit()
+    # overlaps with `meeting_work_activity` but different activity and category
+    sleep_activity = HamsterActivity(
+        start_time=meeting_work_activity.start_time + timedelta(minutes=20),
+        end_time=meeting_work_activity.end_time + timedelta(minutes=60),
+        duration_minutes=180,
+        activity="sleep",
+        category="leisure",
+    )
+
     coding_fun = HamsterActivity(
         start_time=datetime(2024, 6, 1, hour=21, minute=15),
         end_time=datetime(2024, 6, 1, hour=21, minute=45),
@@ -68,9 +97,10 @@ def test_compare_activities(coding_work_activity, db_coding_work, session):
     )
 
     hamster_db = HamsterDB(session)
-    result = compare_activities([coding_work_activity, coding_fun], hamster_db)
+    result = compare_activities([coding_work_activity, sleep_activity, coding_fun], hamster_db)
     assert result.new_activities == [coding_fun]
     assert result.existing == [coding_work_activity]
+    assert result.conflicts == [(sleep_activity, meeting_fact)]
 
 
 def _fact_from_activity(hamster_activity: HamsterActivity, *, session) -> Fact:
@@ -82,6 +112,7 @@ def _fact_from_activity(hamster_activity: HamsterActivity, *, session) -> Fact:
         end_time=hamster_activity.end_time,
         activity=db_activity,
     )
+    session.add(fact)
     return fact
 
 
