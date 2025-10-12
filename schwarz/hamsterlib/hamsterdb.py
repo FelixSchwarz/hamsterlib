@@ -1,5 +1,7 @@
+import sqlite3
 from collections.abc import Iterator, Sequence
 from datetime import date, datetime
+from pathlib import Path
 
 import sqlalchemy
 from sqlalchemy import and_
@@ -30,6 +32,20 @@ class HamsterDB:
         )
         db_facts = self.session.execute(stmt).scalars().all()
         return HamsterFacts(db_facts)
+
+    def db_path(self) -> Path:
+        return Path(self.session.bind.url.database)
+
+    def create_backup(self) -> Path:
+        now_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        path_backup_db = self.db_path().with_suffix(f".{now_str}.db")
+
+        connection_to_backup_db = sqlite3.connect(path_backup_db)
+        raw_connection = self.session.connection().connection
+        raw_connection.backup(connection_to_backup_db)
+        connection_to_backup_db.close()
+
+        return path_backup_db
 
 
 class HamsterFacts:
