@@ -93,6 +93,9 @@ class HamsterDB:
     def commit(self) -> None:
         self.session.commit()
 
+    def rollback(self) -> None:
+        self.session.rollback()
+
 
 class HamsterFacts:
     def __init__(self, facts: Sequence[Fact]):

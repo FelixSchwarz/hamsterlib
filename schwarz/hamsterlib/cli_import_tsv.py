@@ -1,3 +1,4 @@
+import argparse
 import sys
 from datetime import datetime
 
@@ -8,10 +9,17 @@ from schwarz.hamsterlib.tsv_parser import HamsterActivity, parse_hamster_tsv
 
 
 def cli_import_tsv_main():
-    if len(sys.argv) != 2:
-        print("Usage: hamster-import-tsv <tsv_file>", file=sys.stderr)
-        sys.exit(1)
-    tsv_path = sys.argv[1]
+    parser = argparse.ArgumentParser(description="Import activities from a TSV file into Hamster")
+    parser.add_argument("tsv_file", help="Path to the TSV file to import")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be imported without actually importing",
+    )
+
+    args = parser.parse_args()
+    tsv_path = args.tsv_file
+    dry_run = args.dry_run
 
     hamster_db = HamsterDB.with_user_db()
 
@@ -32,10 +40,17 @@ def cli_import_tsv_main():
     for i, new_activity in enumerate(result.new_activities, 1):
         print(f"{_as_hamster_duration(new_activity)} {new_activity.activity}@{new_activity.category}")  # fmt: skip
     print("")
+
+    if dry_run:
+        print(f"🥽 Dry run: {len(result.new_activities)} entries would be imported.")
+        hamster_db.rollback()
+        return
+
     prompt = f"Do you want to import {len(result.new_activities)} new entries? (y/N): "
     should_import = _ask_for_confirmation(prompt)
     if not should_import:
         print("Import cancelled.")
+        hamster_db.rollback()
         return
 
     hamster_db.create_backup()
