@@ -1,0 +1,74 @@
+import sys
+from datetime import datetime
+
+from schwarz.hamsterlib.hamsterdb import HamsterDB
+from schwarz.hamsterlib.high_level_api import compare_activities
+from schwarz.hamsterlib.models import Fact
+from schwarz.hamsterlib.tsv_parser import HamsterActivity, parse_hamster_tsv
+
+
+def cli_import_tsv_main():
+    if len(sys.argv) != 2:
+        print("Usage: hamster-import-tsv <tsv_file>", file=sys.stderr)
+        sys.exit(1)
+    tsv_path = sys.argv[1]
+
+    hamster_db = HamsterDB.with_user_db()
+
+    with open(tsv_path, "r", encoding="utf-8") as tsv_fp:
+        hamster_activities = parse_hamster_tsv(tsv_fp)
+    result = compare_activities(hamster_activities, hamster_db)
+    print(f"New activities: {len(result.new_activities)}")
+    print(f"Existing activities: {len(result.existing)}")
+    print(f"Conflicting activities: {len(result.conflicts)}")
+
+    if result.conflicts:
+        for conflict in result.conflicts:
+            _display_conflict(*conflict)
+    if not result.new_activities:
+        return
+
+    print("\nNew activities to import:")
+    for i, new_activity in enumerate(result.new_activities, 1):
+        print(f"{_as_hamster_duration(new_activity)} {new_activity.activity}@{new_activity.category}")  # fmt: skip
+    print("")
+    prompt = f"Do you want to import {len(result.new_activities)} new entries? (y/N): "
+    should_import = _ask_for_confirmation(prompt)
+    if not should_import:
+        print("Import cancelled.")
+        return
+
+    hamster_db.create_backup()
+    for new_activity in result.new_activities:
+        hamster_db.import_tsv_activity(new_activity)
+    hamster_db.commit()
+    print(f"✅ {len(result.new_activities)} entries imported.")
+
+
+def _display_conflict(activity: HamsterActivity, fact: Fact):
+    if fact.activity:
+        activity_name = fact.activity.name
+        category_name = fact.activity.category.name if fact.activity.category else "???"
+    else:
+        activity_name = "???"
+        category_name = "<uncategorized>"
+    print("Conflict:")
+    print(f"  TSV: {_as_hamster_duration(activity)} {activity.activity}@{activity.category}")  # fmt: skip
+    print(f"  DB:  {_as_hamster_duration(fact)} {activity_name}@{category_name}")
+
+
+def _as_hamster_duration(item: Fact | HamsterActivity) -> str:
+    def _remove_seconds(dt: datetime) -> str:
+        return dt.isoformat(timespec="minutes").replace("T", " ")
+
+    start_str = _remove_seconds(item.start_time) if item.start_time else ""
+    end_str = _remove_seconds(item.end_time) if item.end_time else ""
+    return f"{start_str} - {end_str}"
+
+
+def _ask_for_confirmation(prompt: str) -> bool:
+    try:
+        response = input(prompt).strip().lower()
+        return response in ("y", "yes")
+    except (EOFError, KeyboardInterrupt):
+        return False

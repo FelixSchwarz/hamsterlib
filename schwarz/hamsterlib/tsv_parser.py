@@ -1,8 +1,7 @@
 import re
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from io import StringIO
-from typing import NamedTuple
+from typing import NamedTuple, TextIO
 
 
 class HamsterActivity(NamedTuple):
@@ -52,11 +51,13 @@ class HamsterActivity(NamedTuple):
         return (self.activity,)
 
 
-def parse_hamster_tsv(tsv_fp: StringIO) -> Sequence[HamsterActivity]:
+def parse_hamster_tsv(tsv_fp: TextIO) -> Sequence[HamsterActivity]:
     lines = tsv_fp.readlines()
     if not lines:
         return []
-    header = lines[0].strip().split("\t")
+    # header = lines[0].strip().split("\t")
+    # use fixed header names (actual TSV names are locale-dependent)
+    header = ["activity", "start time", "end time", "duration minutes", "category", "description", "tags"]  # fmt: skip
     entries = []
     for line in lines[1:]:
         if not line.strip():

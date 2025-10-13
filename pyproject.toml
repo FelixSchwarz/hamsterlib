@@ -17,6 +17,9 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest"]
 
+[project.scripts]
+hamster-import-tsv = "schwarz.hamsterlib.cli_import_tsv:cli_import_tsv_main"
+
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
