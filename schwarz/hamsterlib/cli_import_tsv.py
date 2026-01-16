@@ -16,15 +16,31 @@ def cli_import_tsv_main():
         action="store_true",
         help="Show what would be imported without actually importing",
     )
+    parser.add_argument(
+        "--allow-new-categories",
+        action="store_true",
+        help="Allow importing activities with new categories (creates them automatically)",
+    )
 
     args = parser.parse_args()
     tsv_path = args.tsv_file
     dry_run = args.dry_run
+    allow_new_categories = args.allow_new_categories
 
     hamster_db = HamsterDB.with_user_db()
 
     with open(tsv_path, "r", encoding="utf-8") as tsv_fp:
         hamster_activities = parse_hamster_tsv(tsv_fp)
+
+    # Check for new categories before proceeding
+    tsv_categories = {a.category for a in hamster_activities if a.category}
+    new_categories = hamster_db.get_new_category_names(tsv_categories)
+    if new_categories:
+        _display_new_categories_warning(new_categories)
+        if not allow_new_categories:
+            print("Use --allow-new-categories to import anyway (categories will be created).")
+            sys.exit(1)
+
     result = compare_activities(hamster_activities, hamster_db)
     print(f"New activities: {len(result.new_activities)}")
     print(f"Existing activities: {len(result.existing)}")
@@ -87,3 +103,12 @@ def _ask_for_confirmation(prompt: str) -> bool:
         return response in ("y", "yes")
     except (EOFError, KeyboardInterrupt):
         return False
+
+
+def _display_new_categories_warning(new_categories: set[str]) -> None:
+    print("")
+    print("⚠️  WARNING: New categories detected! ⚠️")
+    print("=" * 45)
+    for category in sorted(new_categories):
+        print(f"  - {category}")
+    print("=" * 45)

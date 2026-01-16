@@ -1,5 +1,5 @@
 import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from datetime import date, datetime
 from pathlib import Path
 
@@ -40,6 +40,14 @@ class HamsterDB:
         )
         return self.session.execute(q_activity).scalar_one_or_none()
 
+    def get_all_category_names(self) -> set[str]:
+        q = sqlalchemy.select(Category.name)
+        return set(self.session.execute(q).scalars().all())
+
+    def get_new_category_names(self, category_names: Iterable[str]) -> set[str]:
+        existing_categories = self.get_all_category_names()
+        return set(category_names) - existing_categories
+
     def get_facts(self, from_: date, until: date) -> "HamsterFacts":
         """
         Retrieve all facts whose start_time falls within the specified date
@@ -62,7 +70,9 @@ class HamsterDB:
         category_name = activity.category
         q_category = sqlalchemy.select(Category).where(Category.name == category_name)
         category = self.session.execute(q_category).scalar_one_or_none()
-        assert category is not None, f"Category {category_name} not found in DB"
+        if category is None:
+            category = Category(name=category_name, search_name=category_name.lower())
+            self.session.add(category)
 
         db_activity = self.get_activity(activity.activity, category)
         if db_activity is None:
